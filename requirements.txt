@@ -1,0 +1,10 @@
+flask
+python-dotenv
+line-bot-sdk
+requests
+google-generativeai
+pytesseract
+Pillow
+gspread
+oauth2client
+psycopg2-binary
