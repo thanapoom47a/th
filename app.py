@@ -1,4 +1,4 @@
-# app.py
+# app.py (Final Corrected Version)
 
 from flask import Flask, request, render_template_string
 from linebot import LineBotApi, WebhookHandler
@@ -34,9 +34,7 @@ line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 app = Flask(__name__)
 bangkok_tz = pytz.timezone('Asia/Bangkok')
-
-# --- แก้ไข: เปลี่ยนไปใช้ชื่อ Model ที่ถูกต้องและเป็นเวอร์ชันล่าสุด ---
-MODEL_NAME = "gemini-2.5-flash" 
+MODEL_NAME = "gemini-1.5-flash-latest"
 emotions = ["😊", "😄", "🤔", "👍", "🙌", "😉", "✨"]
 
 try:
@@ -62,10 +60,8 @@ def run_daily_proactive_tasks():
         print(f"[{datetime.now(bangkok_tz).strftime('%Y-%m-%d %H:%M')}] Running ALL Daily Proactive Jobs...")
         all_users = get_all_unique_users()
         today_str = datetime.now(bangkok_tz).strftime('%d-%m')
-
         for user_id in all_users:
             profile = get_user_profile(user_id)
-            # Job 1: Daily Summary
             reminders_today = get_reminders_for_today(user_id, bangkok_tz)
             if reminders_today:
                 summary_text = "สวัสดีตอนเช้าค่ะ! ☀️\nนี่คือรายการแจ้งเตือนสำหรับวันนี้นะคะ:\n"
@@ -73,7 +69,6 @@ def run_daily_proactive_tasks():
                     summary_text += f"\n- {notify_at.astimezone(bangkok_tz).strftime('%H:%M')}: {msg}"
                 try: line_bot_api.push_message(user_id, TextSendMessage(text=summary_text))
                 except Exception as e: print(f"ERROR sending daily summary to {user_id}: {e}")
-            # Job 2: Birthday Greeting
             if profile.get('วันเกิด') == today_str:
                 try: line_bot_api.push_message(user_id, TextSendMessage(text="🎂 สุขสันต์วันเกิดนะคะ! ขอให้เป็นวันที่ดี มีความสุขมากๆ เลยค่ะ 🎉"))
                 except Exception as e: print(f"ERROR sending birthday greeting to {user_id}: {e}")
@@ -88,8 +83,6 @@ print("Scheduler started: Notifications (1 min) and Proactive Daily Jobs (8 AM).
 # --- 3. CORE AI LOGIC ---
 def ask_gemini(user_id, user_text):
     profile = get_user_profile(user_id)
-    
-    # Contextual Follow-up Check
     pending_action = profile.get('pending_action')
     if pending_action == 'set_reminder_message':
         pending_data = profile.get('pending_data', {})
@@ -106,25 +99,10 @@ def ask_gemini(user_id, user_text):
                 clear_pending_action(user_id)
                 return "ขออภัยค่ะ มีปัญหาในการสร้างการแจ้งเตือน"
 
-    # System Prompt Construction
     profile_str = ", ".join([f"{k}คือ{v}" for k, v in profile.items() if k not in ['pending_action', 'pending_data']])
     profile_prompt = f"ข้อมูลเกี่ยวกับผู้ใช้: {profile_str}." if profile_str else ""
-
-    system_instruction = {
-        "role": "system", "parts": [{"text": f"""
-            คุณคือผู้ช่วย AI ส่วนตัวที่ฉลาด มีอารมณ์ขัน และเป็นมิตร ตอบเป็นภาษาไทย
-            {profile_prompt}
-            # ความสามารถพิเศษ:
-            1.  **จดจำข้อมูล**: หากผู้ใช้บอกข้อมูลส่วนตัว (เช่น ของโปรด, วันเกิดในรูปแบบ DD-MM) ให้ตอบรับและต่อท้ายด้วย `[SAVE_PROFILE:{{"key":"value"}}]`
-            2.  **ลืมข้อมูล**: หากผู้ใช้สั่งให้ลืมข้อมูล ให้ตอบรับและต่อท้ายด้วย `[DELETE_PROFILE:{{"key":"ชื่อkey"}}]`
-            3.  **ตั้งแจ้งเตือน (สมบูรณ์)**: หากผู้ใช้บอกทั้ง "เวลา" และ "ข้อความ" ให้ตอบรับและต่อท้ายด้วย `[SET_REMINDER:{{"time":"YYYY-MM-DD HH:MM:SS", "message":"ข้อความ"}}]`
-            4.  **ตั้งแจ้งเตือน (รอข้อมูล)**: หากผู้ใช้บอก "แค่เวลา" แต่ "ยังไม่บอกข้อความ" ให้ถามกลับว่า "จะให้เตือนเรื่องอะไรดีคะ?" และต่อท้ายด้วย `[SET_PENDING_ACTION:{{"action":"set_reminder_message", "data":{{"time":"YYYY-MM-DD HH:MM:SS"}}}}]`
-            5.  **สร้างบุคลิก**: หากผู้ใช้บ่นว่า "เบื่อ" หรือ "เศร้า" ให้เล่าเรื่องตลกสั้นๆ ที่สร้างสรรค์และไม่ซ้ำซาก
-            สำคัญ: ห้ามแสดง Markdown ในคำตอบ
-        """}]
-    }
+    system_instruction = {"role": "system", "parts": [{"text": f"""คุณคือผู้ช่วย AI ส่วนตัวที่ฉลาด มีอารมณ์ขัน และเป็นมิตร ตอบเป็นภาษาไทย\n{profile_prompt}\n# ความสามารถพิเศษ:\n1.  **จดจำข้อมูล**: หากผู้ใช้บอกข้อมูลส่วนตัว (เช่น ของโปรด, วันเกิดในรูปแบบ DD-MM) ให้ตอบรับและต่อท้ายด้วย `[SAVE_PROFILE:{{"key":"value"}}]`\n2.  **ลืมข้อมูล**: หากผู้ใช้สั่งให้ลืมข้อมูล ให้ตอบรับและต่อท้ายด้วย `[DELETE_PROFILE:{{"key":"ชื่อkey"}}]`\n3.  **ตั้งแจ้งเตือน (สมบูรณ์)**: หากผู้ใช้บอกทั้ง "เวลา" และ "ข้อความ" ให้ตอบรับและต่อท้ายด้วย `[SET_REMINDER:{{"time":"YYYY-MM-DD HH:MM:SS", "message":"ข้อความ"}}]`\n4.  **ตั้งแจ้งเตือน (รอข้อมูล)**: หากผู้ใช้บอก "แค่เวลา" แต่ "ยังไม่บอกข้อความ" ให้ถามกลับว่า "จะให้เตือนเรื่องอะไรดีคะ?" และต่อท้ายด้วย `[SET_PENDING_ACTION:{{"action":"set_reminder_message", "data":{{"time":"YYYY-MM-DD HH:MM:SS"}}}}]`\n5.  **สร้างบุคลิก**: หากผู้ใช้บ่นว่า "เบื่อ" หรือ "เศร้า" ให้เล่าเรื่องตลกสั้นๆ ที่สร้างสรรค์และไม่ซ้ำซาก\nสำคัญ: ห้ามแสดง Markdown ในคำตอบ"""}]}
     
-    # API Call and Response Processing
     try:
         history = []
         context_from_db = get_session(user_id)
@@ -139,32 +117,31 @@ def ask_gemini(user_id, user_text):
         response.raise_for_status()
         result = response.json()
 
-        reply_text = result['candidates'][0]['content']['parts'][0].get('text', "ขออภัยค่ะ มีปัญหาในการสร้างคำตอบ")
+        reply_text = result['candidates']['content']['parts'].get('text', "ขออภัยค่ะ มีปัญหาในการสร้างคำตอบ")
         clean_reply = reply_text
 
-        # Command Parsing
         if '[SAVE_PROFILE:' in reply_text:
-            command_str = reply_text.split('[SAVE_PROFILE:')[1].split(']')[0]
-            try: update_user_profile(user_id, json.loads(command_str)); clean_reply = reply_text.split('[SAVE_PROFILE:')[0].strip()
+            command_str = reply_text.split('[SAVE_PROFILE:').split(']')
+            try: update_user_profile(user_id, json.loads(command_str)); clean_reply = reply_text.split('[SAVE_PROFILE:').strip()
             except Exception as e: print(f"ERROR parsing [SAVE_PROFILE]: {e}")
         elif '[DELETE_PROFILE:' in reply_text:
-            command_str = reply_text.split('[DELETE_PROFILE:')[1].split(']')[0]
-            try: delete_user_profile_key(user_id, json.loads(command_str)['key']); clean_reply = reply_text.split('[DELETE_PROFILE:')[0].strip()
+            command_str = reply_text.split('[DELETE_PROFILE:').split(']')
+            try: delete_user_profile_key(user_id, json.loads(command_str)['key']); clean_reply = reply_text.split('[DELETE_PROFILE:').strip()
             except Exception as e: print(f"ERROR parsing [DELETE_PROFILE]: {e}")
         elif '[SET_REMINDER:' in reply_text:
-            command_str = reply_text.split('[SET_REMINDER:')[1].split(']')[0]
+            command_str = reply_text.split('[SET_REMINDER:').split(']')
             try:
                 r_data = json.loads(command_str)
                 n_dt = bangkok_tz.localize(datetime.strptime(r_data["time"], "%Y-%m-%d %H:%M:%S"))
                 create_reminder(user_id, r_data["message"], n_dt)
-                clean_reply = reply_text.split('[SET_REMINDER:')[0].strip()
+                clean_reply = reply_text.split('[SET_REMINDER:').strip()
             except Exception as e: print(f"ERROR parsing [SET_REMINDER]: {e}")
         elif '[SET_PENDING_ACTION:' in reply_text:
-            command_str = reply_text.split('[SET_PENDING_ACTION:')[1].split(']')[0]
+            command_str = reply_text.split('[SET_PENDING_ACTION:').split(']')
             try:
                 a_data = json.loads(command_str)
                 update_user_profile(user_id, {"pending_action": a_data.get("action"), "pending_data": a_data.get("data")})
-                clean_reply = reply_text.split('[SET_PENDING_ACTION:')[0].strip()
+                clean_reply = reply_text.split('[SET_PENDING_ACTION:').strip()
             except Exception as e: print(f"ERROR parsing [SET_PENDING_ACTION]: {e}")
 
         history.append({"role": "model", "parts": [{"text": clean_reply}]})
@@ -180,12 +157,10 @@ def ask_gemini(user_id, user_text):
 def handle_text(event):
     user_id = event.source.user_id
     user_text = event.message.text.strip()
-
     if user_text.lower() in ["/reset", "ล้างความจำ", "reset", "clear"]:
         clear_session(user_id)
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text="🧠 ความจำระยะสั้น (บทสนทนา) ถูกล้างแล้วค่ะ!"))
         return
-
     reply_text = ask_gemini(user_id, user_text)
     save_chat(user_id, user_text, reply_text)
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
@@ -203,12 +178,9 @@ def callback():
 
 @app.route("/")
 def dashboard():
-    # --- ปรับปรุง: เพิ่ม limit การแสดงผลในตาราง ---
     chat_logs = get_chat_history(limit=200) 
     profiles = get_all_user_profiles()
     pending_reminders = get_pending_reminders_for_dashboard()
-    
-    # --- แก้ไข: จัดการย่อหน้าของ HTML ทั้งหมดให้ถูกต้อง ---
     html = """
 <!DOCTYPE html>
 <html lang="th">
@@ -249,14 +221,14 @@ def dashboard():
         </div>
         <div class="row g-4">
             <div class="col-lg-6"><div class="card main-card"><div class="card-header bg-white">🧠 ความจำถาวร (User Profiles)</div><div class="card-body"><table id="profilesTable" class="table table-hover" style="width:100%"><thead><tr><th>User ID</th><th>ข้อมูล</th><th>อัปเดตล่าสุด</th></tr></thead><tbody>
-            {% for p in profiles %}<tr><td><small>{{ p[0][:15] }}...</small></td><td><pre class="mb-0"><small>{{ p[1]|tojson(indent=2) }}</small></pre></td><td><small>{{ p[2].astimezone(bangkok_tz).strftime('%Y-%m-%d %H:%M') }}</small></td></tr>{% endfor %}
+            {% for p in profiles %}<tr><td><small>{{ p[:15] }}...</small></td><td><pre class="mb-0"><small>{{ p|tojson(indent=2) }}</small></pre></td><td><small>{{ p.astimezone(bangkok_tz).strftime('%Y-%m-%d %H:%M') }}</small></td></tr>{% endfor %}
             </tbody></table></div></div></div>
             <div class="col-lg-6"><div class="card main-card"><div class="card-header bg-white">⏰ รายการแจ้งเตือนที่รอส่ง</div><div class="card-body"><table id="remindersTable" class="table table-hover" style="width:100%"><thead><tr><th>User ID</th><th>ข้อความ</th><th>เวลาแจ้งเตือน</th></tr></thead><tbody>
-            {% for r in reminders %}<tr><td><small>{{ r[0][:15] }}...</small></td><td>{{ r[1] }}</td><td><small>{{ r[2].astimezone(bangkok_tz).strftime('%Y-%m-%d %H:%M') }}</small></td></tr>{% endfor %}
+            {% for r in reminders %}<tr><td><small>{{ r[:15] }}...</small></td><td>{{ r }}</td><td><small>{{ r.astimezone(bangkok_tz).strftime('%Y-%m-%d %H:%M') }}</small></td></tr>{% endfor %}
             </tbody></table></div></div></div>
         </div>
         <div class="row mt-4"><div class="col-12"><div class="card main-card"><div class="card-header bg-white">💬 ความจำระยะสั้น (ประวัติแชทล่าสุด)</div><div class="card-body"><table id="chatHistoryTable" class="table table-hover" style="width:100%"><thead><tr><th>เวลา</th><th>User ID</th><th>ข้อความ</th><th>ตอบกลับ</th></tr></thead><tbody>
-            {% for log in chat_logs %}<tr><td><small>{{ log[4].astimezone(bangkok_tz).strftime('%Y-%m-%d %H:%M') }}</small></td><td><small>{{ log[1][:15] }}...</small></td><td>{{ log[2] }}</td><td>{{ log[3] }}</td></tr>{% endfor %}
+            {% for log in chat_logs %}<tr><td><small>{{ log.astimezone(bangkok_tz).strftime('%Y-%m-%d %H:%M') }}</small></td><td><small>{{ log[:15] }}...</small></td><td>{{ log }}</td><td>{{ log }}</td></tr>{% endfor %}
             </tbody></table></div></div></div></div>
     </main>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -282,5 +254,4 @@ def dashboard():
 
 @app.route("/ping")
 def ping():
-    return "OK", 200```
-
+    return "OK", 200
