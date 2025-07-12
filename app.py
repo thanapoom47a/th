@@ -1,4 +1,4 @@
-# app.py (Final Corrected Version)
+# app.py (Final Corrected Version 2)
 
 from flask import Flask, request, render_template_string
 from linebot import LineBotApi, WebhookHandler
@@ -62,6 +62,7 @@ def run_daily_proactive_tasks():
         today_str = datetime.now(bangkok_tz).strftime('%d-%m')
         for user_id in all_users:
             profile = get_user_profile(user_id)
+            # Job 1: Daily Summary
             reminders_today = get_reminders_for_today(user_id, bangkok_tz)
             if reminders_today:
                 summary_text = "สวัสดีตอนเช้าค่ะ! ☀️\nนี่คือรายการแจ้งเตือนสำหรับวันนี้นะคะ:\n"
@@ -69,6 +70,7 @@ def run_daily_proactive_tasks():
                     summary_text += f"\n- {notify_at.astimezone(bangkok_tz).strftime('%H:%M')}: {msg}"
                 try: line_bot_api.push_message(user_id, TextSendMessage(text=summary_text))
                 except Exception as e: print(f"ERROR sending daily summary to {user_id}: {e}")
+            # Job 2: Birthday Greeting
             if profile.get('วันเกิด') == today_str:
                 try: line_bot_api.push_message(user_id, TextSendMessage(text="🎂 สุขสันต์วันเกิดนะคะ! ขอให้เป็นวันที่ดี มีความสุขมากๆ เลยค่ะ 🎉"))
                 except Exception as e: print(f"ERROR sending birthday greeting to {user_id}: {e}")
@@ -101,7 +103,7 @@ def ask_gemini(user_id, user_text):
 
     profile_str = ", ".join([f"{k}คือ{v}" for k, v in profile.items() if k not in ['pending_action', 'pending_data']])
     profile_prompt = f"ข้อมูลเกี่ยวกับผู้ใช้: {profile_str}." if profile_str else ""
-    system_instruction = {"role": "system", "parts": [{"text": f"""คุณคือผู้ช่วย AI ส่วนตัวที่ฉลาด มีอารมณ์ขัน และเป็นมิตร ตอบเป็นภาษาไทย\n{profile_prompt}\n# ความสามารถพิเศษ:\n1.  **จดจำข้อมูล**: หากผู้ใช้บอกข้อมูลส่วนตัว (เช่น ของโปรด, วันเกิดในรูปแบบ DD-MM) ให้ตอบรับและต่อท้ายด้วย `[SAVE_PROFILE:{{"key":"value"}}]`\n2.  **ลืมข้อมูล**: หากผู้ใช้สั่งให้ลืมข้อมูล ให้ตอบรับและต่อท้ายด้วย `[DELETE_PROFILE:{{"key":"ชื่อkey"}}]`\n3.  **ตั้งแจ้งเตือน (สมบูรณ์)**: หากผู้ใช้บอกทั้ง "เวลา" และ "ข้อความ" ให้ตอบรับและต่อท้ายด้วย `[SET_REMINDER:{{"time":"YYYY-MM-DD HH:MM:SS", "message":"ข้อความ"}}]`\n4.  **ตั้งแจ้งเตือน (รอข้อมูล)**: หากผู้ใช้บอก "แค่เวลา" แต่ "ยังไม่บอกข้อความ" ให้ถามกลับว่า "จะให้เตือนเรื่องอะไรดีคะ?" และต่อท้ายด้วย `[SET_PENDING_ACTION:{{"action":"set_reminder_message", "data":{{"time":"YYYY-MM-DD HH:MM:SS"}}}}]`\n5.  **สร้างบุคลิก**: หากผู้ใช้บ่นว่า "เบื่อ" หรือ "เศร้า" ให้เล่าเรื่องตลกสั้นๆ ที่สร้างสรรค์และไม่ซ้ำซาก\nสำคัญ: ห้ามแสดง Markdown ในคำตอบ"""}]}
+    system_instruction = {"role": "system", "parts": [{"text": f"""คุณคือผู้ช่วย AI ส่วนตัวที่ฉลาด มีอารมณ์ขัน และเป็นมิตร ตอบเป็นภาษาไทย\n{profile_prompt}\n# ความสามารถพิเศษ:\n1.  **จดจำข้อมูล**: หากผู้ใช้บอกข้อมูลส่วนตัว (เช่น ของโปรด, วันเกิดในรูปแบบ DD-MM) ให้ตอบรับและต่อท้ายด้วย `[SAVE_PROFILE:{{"key":"value"}}]`\n2.  **ลืมข้อมูล**: หากผู้ใช้สั่งให้ลืมข้อมูล ให้ตอบรับและต่อท้ายด้วย `[DELETE_PROFILE:{{"key":"ชื่อkey"}}]`\n3.  **ตั้งแจ้งเตือน (สมบูรณ์)**: หากผู้ใช้บอกทั้ง "เวลา" และ "ข้อความ" ให้ตอบรับและต่อท้ายด้วย `[SET_REMINDER:{{"time":"YYYY-MM-DD HH:MECS", "message":"ข้อความ"}}]`\n4.  **ตั้งแจ้งเตือน (รอข้อมูล)**: หากผู้ใช้บอก "แค่เวลา" แต่ "ยังไม่บอกข้อความ" ให้ถามกลับว่า "จะให้เตือนเรื่องอะไรดีคะ?" และต่อท้ายด้วย `[SET_PENDING_ACTION:{{"action":"set_reminder_message", "data":{{"time":"YYYY-MM-DD HH:MM:SS"}}}}]`\n5.  **สร้างบุคลิก**: หากผู้ใช้บ่นว่า "เบื่อ" หรือ "เศร้า" ให้เล่าเรื่องตลกสั้นๆ ที่สร้างสรรค์และไม่ซ้ำซาก\nสำคัญ: ห้ามแสดง Markdown ในคำตอบ"""}]}
     
     try:
         history = []
@@ -117,31 +119,38 @@ def ask_gemini(user_id, user_text):
         response.raise_for_status()
         result = response.json()
 
-        reply_text = result['candidates']['content']['parts'].get('text', "ขออภัยค่ะ มีปัญหาในการสร้างคำตอบ")
+        # --- แก้ไข: ดึงข้อมูลจาก Gemini API ให้ถูกต้อง ---
+        reply_text = "ขออภัยค่ะ มีปัญหาในการสร้างคำตอบ"
+        if 'candidates' in result and result['candidates']:
+            candidate = result['candidates'][0]
+            if 'content' in candidate and 'parts' in candidate['content'] and candidate['content']['parts']:
+                reply_text = candidate['content']['parts'][0].get('text', reply_text)
+        
         clean_reply = reply_text
 
+        # Command Parsing (ปรับปรุงให้สั้นและปลอดภัยขึ้น)
         if '[SAVE_PROFILE:' in reply_text:
-            command_str = reply_text.split('[SAVE_PROFILE:').split(']')
-            try: update_user_profile(user_id, json.loads(command_str)); clean_reply = reply_text.split('[SAVE_PROFILE:').strip()
+            command_str = reply_text.split('[SAVE_PROFILE:')[1].split(']')[0]
+            try: update_user_profile(user_id, json.loads(command_str)); clean_reply = reply_text.split('[SAVE_PROFILE:')[0].strip()
             except Exception as e: print(f"ERROR parsing [SAVE_PROFILE]: {e}")
         elif '[DELETE_PROFILE:' in reply_text:
-            command_str = reply_text.split('[DELETE_PROFILE:').split(']')
-            try: delete_user_profile_key(user_id, json.loads(command_str)['key']); clean_reply = reply_text.split('[DELETE_PROFILE:').strip()
+            command_str = reply_text.split('[DELETE_PROFILE:')[1].split(']')[0]
+            try: delete_user_profile_key(user_id, json.loads(command_str)['key']); clean_reply = reply_text.split('[DELETE_PROFILE:')[0].strip()
             except Exception as e: print(f"ERROR parsing [DELETE_PROFILE]: {e}")
         elif '[SET_REMINDER:' in reply_text:
-            command_str = reply_text.split('[SET_REMINDER:').split(']')
+            command_str = reply_text.split('[SET_REMINDER:')[1].split(']')[0]
             try:
                 r_data = json.loads(command_str)
                 n_dt = bangkok_tz.localize(datetime.strptime(r_data["time"], "%Y-%m-%d %H:%M:%S"))
                 create_reminder(user_id, r_data["message"], n_dt)
-                clean_reply = reply_text.split('[SET_REMINDER:').strip()
+                clean_reply = reply_text.split('[SET_REMINDER:')[0].strip()
             except Exception as e: print(f"ERROR parsing [SET_REMINDER]: {e}")
         elif '[SET_PENDING_ACTION:' in reply_text:
-            command_str = reply_text.split('[SET_PENDING_ACTION:').split(']')
+            command_str = reply_text.split('[SET_PENDING_ACTION:')[1].split(']')[0]
             try:
                 a_data = json.loads(command_str)
                 update_user_profile(user_id, {"pending_action": a_data.get("action"), "pending_data": a_data.get("data")})
-                clean_reply = reply_text.split('[SET_PENDING_ACTION:').strip()
+                clean_reply = reply_text.split('[SET_PENDING_ACTION:')[0].strip()
             except Exception as e: print(f"ERROR parsing [SET_PENDING_ACTION]: {e}")
 
         history.append({"role": "model", "parts": [{"text": clean_reply}]})
@@ -149,7 +158,7 @@ def ask_gemini(user_id, user_text):
         return clean_reply + " " + random.choice(emotions)
 
     except Exception as e:
-        print(f"An unexpected error occurred: {e}\n{traceback.format_exc()}")
+        print(f"An unexpected error occurred in ask_gemini: {e}\n{traceback.format_exc()}")
         return "ขอโทษค่ะ ระบบขัดข้อง"
 
 # --- 4. WEB ROUTES & HANDLERS ---
@@ -185,15 +194,12 @@ def dashboard():
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="refresh" content="300">
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta http-equiv="refresh" content="300">
     <title>🧠 SmartBot Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
     <link rel="stylesheet" href="https://cdn.datatables.net/2.0.8/css/dataTables.bootstrap5.min.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Noto Sans Thai', sans-serif; background-color: #f0f2f5; }
@@ -210,10 +216,7 @@ def dashboard():
 </head>
 <body>
     <main class="container-fluid py-4">
-        <header class="d-flex align-items-center mb-4">
-            <h1 class="h2 text-dark me-3">SmartBot Dashboard</h1>
-            <span class="badge bg-primary-subtle text-primary-emphasis rounded-pill">Real-time</span>
-        </header>
+        <header class="d-flex align-items-center mb-4"><h1 class="h2 text-dark me-3">SmartBot Dashboard</h1><span class="badge bg-primary-subtle text-primary-emphasis rounded-pill">Real-time</span></header>
         <div class="row g-4 mb-4">
             <div class="col-lg-4 col-md-6"><div class="stat-card"><div class="card-body p-4"><div><div class="stat-number">{{ profiles|length }}</div><div class="stat-label">Active Profiles</div></div><i class="fas fa-users"></i></div></div></div>
             <div class="col-lg-4 col-md-6"><div class="stat-card"><div class="card-body p-4"><div><div class="stat-number">{{ pending_reminders|length }}</div><div class="stat-label">Pending Reminders</div></div><i class="fas fa-bell"></i></div></div></div>
@@ -221,14 +224,14 @@ def dashboard():
         </div>
         <div class="row g-4">
             <div class="col-lg-6"><div class="card main-card"><div class="card-header bg-white">🧠 ความจำถาวร (User Profiles)</div><div class="card-body"><table id="profilesTable" class="table table-hover" style="width:100%"><thead><tr><th>User ID</th><th>ข้อมูล</th><th>อัปเดตล่าสุด</th></tr></thead><tbody>
-            {% for p in profiles %}<tr><td><small>{{ p[:15] }}...</small></td><td><pre class="mb-0"><small>{{ p|tojson(indent=2) }}</small></pre></td><td><small>{{ p.astimezone(bangkok_tz).strftime('%Y-%m-%d %H:%M') }}</small></td></tr>{% endfor %}
+            {% for p in profiles %}<tr><td><small>{{ p[0][:15] }}...</small></td><td><pre class="mb-0"><small>{{ p[1]|tojson(indent=2) }}</small></pre></td><td><small>{{ p[2].astimezone(bangkok_tz).strftime('%Y-%m-%d %H:%M') }}</small></td></tr>{% endfor %}
             </tbody></table></div></div></div>
             <div class="col-lg-6"><div class="card main-card"><div class="card-header bg-white">⏰ รายการแจ้งเตือนที่รอส่ง</div><div class="card-body"><table id="remindersTable" class="table table-hover" style="width:100%"><thead><tr><th>User ID</th><th>ข้อความ</th><th>เวลาแจ้งเตือน</th></tr></thead><tbody>
-            {% for r in reminders %}<tr><td><small>{{ r[:15] }}...</small></td><td>{{ r }}</td><td><small>{{ r.astimezone(bangkok_tz).strftime('%Y-%m-%d %H:%M') }}</small></td></tr>{% endfor %}
+            {% for r in reminders %}<tr><td><small>{{ r[0][:15] }}...</small></td><td>{{ r[1] }}</td><td><small>{{ r[2].astimezone(bangkok_tz).strftime('%Y-%m-%d %H:%M') }}</small></td></tr>{% endfor %}
             </tbody></table></div></div></div>
         </div>
         <div class="row mt-4"><div class="col-12"><div class="card main-card"><div class="card-header bg-white">💬 ความจำระยะสั้น (ประวัติแชทล่าสุด)</div><div class="card-body"><table id="chatHistoryTable" class="table table-hover" style="width:100%"><thead><tr><th>เวลา</th><th>User ID</th><th>ข้อความ</th><th>ตอบกลับ</th></tr></thead><tbody>
-            {% for log in chat_logs %}<tr><td><small>{{ log.astimezone(bangkok_tz).strftime('%Y-%m-%d %H:%M') }}</small></td><td><small>{{ log[:15] }}...</small></td><td>{{ log }}</td><td>{{ log }}</td></tr>{% endfor %}
+            {% for log in chat_logs %}<tr><td><small>{{ log[4].astimezone(bangkok_tz).strftime('%Y-%m-%d %H:%M') }}</small></td><td><small>{{ log[1][:15] }}...</small></td><td>{{ log[2] }}</td><td>{{ log[3] }}</td></tr>{% endfor %}
             </tbody></table></div></div></div></div>
     </main>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -254,4 +257,4 @@ def dashboard():
 
 @app.route("/ping")
 def ping():
-    return "OK", 200
+    return "OK"
