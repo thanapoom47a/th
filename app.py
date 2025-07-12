@@ -199,6 +199,10 @@ def dashboard():
     """
     return render_template_string(html, chat_logs=chat_logs, daily=daily, monthly=monthly)
 
+@app.before_first_request
+def initialize():
+    create_tables()
+
 if __name__ == "__main__":
     create_tables()
     port = int(os.environ.get("PORT", 7000))
