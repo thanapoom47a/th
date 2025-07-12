@@ -205,24 +205,204 @@ def dashboard():
     profiles = get_all_user_profiles()
     pending_reminders = get_pending_reminders_for_dashboard()
     
-    html = """
-    <!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>🧠 SmartBot Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>body{background-color:#f8f9fa;padding:1.5rem}.card-header{font-weight:bold}.card{margin-bottom:1.5rem}</style>
-    </head><body><div class="container-fluid">
-    <h1 class="mb-4">📊 SmartBot Dashboard: Memory & Notifications</h1><div class="row"><div class="col-lg-6">
-    <div class="card"><div class="card-header">🧠 ความจำถาวร (User Profiles)</div><div class="card-body" style="max-height:400px;overflow-y:auto">
-    <table class="table table-sm table-striped"><thead><tr><th>User ID</th><th>ข้อมูลที่บันทึกไว้</th><th>อัปเดตล่าสุด</th></tr></thead><tbody>
-    {% for p in profiles %}<tr><td><small>{{ p[0][:15] }}...</small></td><td><pre class="mb-0"><small>{{ p[1]|tojson(indent=2) }}</small></pre></td><td>{{ p[2].astimezone(bangkok_tz).strftime('%Y-%m-%d %H:%M') }}</td></tr>
-    {% else %}<tr><td colspan="3" class="text-center text-muted">ยังไม่มีข้อมูล</td></tr>{% endfor %}</tbody></table></div></div>
-    <div class="card"><div class="card-header">⏰ รายการแจ้งเตือนที่รอส่ง</div><div class="card-body" style="max-height:400px;overflow-y:auto">
-    <table class="table table-sm table-hover"><thead><tr><th>User ID</th><th>ข้อความแจ้งเตือน</th><th>เวลาแจ้งเตือน</th></tr></thead><tbody>
-    {% for r in reminders %}<tr><td><small>{{ r[0][:15] }}...</small></td><td>{{ r[1] }}</td><td>{{ r[2].astimezone(bangkok_tz).strftime('%Y-%m-%d %H:%M') }}</td></tr>
-    {% else %}<tr><td colspan="3" class="text-center text-muted">ไม่มีการแจ้งเตือนที่รออยู่</td></tr>{% endfor %}</tbody></table></div></div></div>
-    <div class="col-lg-6"><div class="card"><div class="card-header">💬 ความจำระยะสั้น (แชทล่าสุด)</div><div class="card-body" style="max-height:850px;overflow-y:auto">
-    <table class="table table-sm"><thead><tr><th>เวลา</th><th>User ID</th><th>ข้อความ</th><th>ตอบกลับ</th></tr></thead><tbody>
-    {% for log in chat_logs %}<tr><td>{{ log[4].astimezone(bangkok_tz).strftime('%H:%M') }}</td><td><small>{{ log[1][:15] }}...</small></td><td>{{ log[2] }}</td><td>{{ log[3] }}</td></tr>
-    {% else %}<tr><td colspan="4" class="text-center text-muted">ยังไม่มีประวัติแชท</td></tr>{% endfor %}</tbody></table></div></div></div></div></div></body></html>
+ html = """
+    <!DOCTYPE html>
+    <html lang="th">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="refresh" content="300"> <!-- เพิ่ม: รีเฟรชหน้าทุก 5 นาที -->
+        <title>🧠 SmartBot Dashboard</title>
+        
+        <!-- 1. CSS Libraries -->
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+        <link rel="stylesheet" href="https://cdn.datatables.net/2.0.8/css/dataTables.bootstrap5.min.css">
+        
+        <!-- 2. Google Fonts -->
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;700&display=swap" rel="stylesheet">
+        
+        <!-- 3. Custom CSS for Elegant Look -->
+        <style>
+            body {
+                font-family: 'Noto Sans Thai', sans-serif;
+                background-color: #f0f2f5;
+            }
+            .stat-card {
+                background: #ffffff;
+                border: none;
+                border-radius: 0.75rem;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+                transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            }
+            .stat-card:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+            }
+            .stat-card .card-body {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+            .stat-card i {
+                font-size: 2.5rem;
+                color: #0d6efd;
+                opacity: 0.7;
+            }
+            .stat-card .stat-number {
+                font-size: 2.25rem;
+                font-weight: 700;
+                color: #343a40;
+            }
+            .stat-card .stat-label {
+                font-size: 1rem;
+                color: #6c757d;
+            }
+            .main-card {
+                border-radius: 0.75rem;
+                border: none;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            }
+            .table-hover tbody tr:hover {
+                background-color: #e9ecef;
+            }
+            .dataTables_wrapper .row {
+                margin-bottom: 1rem;
+            }
+        </style>
+    </head>
+    <body>
+        <main class="container-fluid py-4">
+            <header class="d-flex align-items-center mb-4">
+                <h1 class="h2 text-dark me-3">SmartBot Dashboard</h1>
+                <span class="badge bg-primary-subtle text-primary-emphasis rounded-pill">Real-time</span>
+            </header>
+
+            <!-- Stat Cards Row -->
+            <div class="row g-4 mb-4">
+                <div class="col-lg-4 col-md-6">
+                    <div class="stat-card">
+                        <div class="card-body p-4">
+                            <div>
+                                <div class="stat-number">{{ profiles|length }}</div>
+                                <div class="stat-label">Active Profiles</div>
+                            </div>
+                            <i class="fas fa-users"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="stat-card">
+                        <div class="card-body p-4">
+                            <div>
+                                <div class="stat-number">{{ pending_reminders|length }}</div>
+                                <div class="stat-label">Pending Reminders</div>
+                            </div>
+                            <i class="fas fa-bell"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-12">
+                     <div class="stat-card">
+                        <div class="card-body p-4">
+                            <div>
+                                <div class="stat-number">{{ chat_logs|length }}</div>
+                                <div class="stat-label">Recent Messages</div>
+                            </div>
+                            <i class="fas fa-comments"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content Row -->
+            <div class="row g-4">
+                <div class="col-lg-6">
+                    <div class="card main-card">
+                        <div class="card-header bg-white">🧠 ความจำถาวร (User Profiles)</div>
+                        <div class="card-body">
+                            <table id="profilesTable" class="table table-hover" style="width:100%">
+                                <thead><tr><th>User ID</th><th>ข้อมูล</th><th>อัปเดตล่าสุด</th></tr></thead>
+                                <tbody>
+                                {% for p in profiles %}<tr>
+                                    <td><small>{{ p[0][:15] }}...</small></td>
+                                    <td><pre class="mb-0"><small>{{ p[1]|tojson(indent=2) }}</small></pre></td>
+                                    <td><small>{{ p[2].astimezone(bangkok_tz).strftime('%Y-%m-%d %H:%M') }}</small></td>
+                                </tr>{% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="card main-card">
+                        <div class="card-header bg-white">⏰ รายการแจ้งเตือนที่รอส่ง</div>
+                        <div class="card-body">
+                           <table id="remindersTable" class="table table-hover" style="width:100%">
+                                <thead><tr><th>User ID</th><th>ข้อความ</th><th>เวลาแจ้งเตือน</th></tr></thead>
+                                <tbody>
+                                {% for r in reminders %}<tr>
+                                    <td><small>{{ r[0][:15] }}...</small></td>
+                                    <td>{{ r[1] }}</td>
+                                    <td><small>{{ r[2].astimezone(bangkok_tz).strftime('%Y-%m-%d %H:%M') }}</small></td>
+                                </tr>{% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Chat History Full Width -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card main-card">
+                        <div class="card-header bg-white">💬 ความจำระยะสั้น (ประวัติแชทล่าสุด)</div>
+                        <div class="card-body">
+                            <table id="chatHistoryTable" class="table table-hover" style="width:100%">
+                                <thead><tr><th>เวลา</th><th>User ID</th><th>ข้อความ</th><th>ตอบกลับ</th></tr></thead>
+                                <tbody>
+                                {% for log in chat_logs %}<tr>
+                                    <td><small>{{ log[4].astimezone(bangkok_tz).strftime('%Y-%m-%d %H:%M') }}</small></td>
+                                    <td><small>{{ log[1][:15] }}...</small></td>
+                                    <td>{{ log[2] }}</td>
+                                    <td>{{ log[3] }}</td>
+                                </tr>{% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 4. JavaScript Libraries -->
+        <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+        <script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
+        <script src="https://cdn.datatables.net/2.0.8/js/dataTables.bootstrap5.min.js"></script>
+
+        <!-- 5. Initialize DataTables -->
+        <script>
+            $(document).ready(function() {
+                const options = {
+                    responsive: true,
+                    language: {
+                        url: '//cdn.datatables.net/plug-ins/2.0.8/i18n/th.json',
+                    },
+                    order: [[0, 'desc']] // Default sort by first column descending
+                };
+                
+                $('#chatHistoryTable').DataTable(options);
+                
+                const otherOptions = { ...options, order: [] }; // Don't default sort for these tables
+                $('#profilesTable').DataTable(otherOptions);
+                $('#remindersTable').DataTable(otherOptions);
+            });
+        </script>
+    </body>
+    </html>
     """
     return render_template_string(html, chat_logs=chat_logs, profiles=profiles, reminders=pending_reminders, bangkok_tz=bangkok_tz)
 
