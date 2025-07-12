@@ -57,6 +57,82 @@ def ask_gemini(user_id, user_text):
     }
     
     history = []
+    # --- START OF MODIFICATION ---
+    # ดึงข้อมูลประวัติการสนทนาจากฐานข้อมูล
+    context_from_db = get_session(user_id)
+    
+    if context_from_db:
+        saved_msgs = []
+        try:
+            # ตรวจสอบว่าข้อมูลที่ได้เป็น string หรือไม่
+            if isinstance(context_from_db, str):
+                # ถ้าเป็น string ให้ใช้ json.loads() แปลงเป็น Python object
+                saved_msgs = json.loads(context_from_db)
+            # ตรวจสอบว่าข้อมูลที่ได้เป็น list อยู่แล้วหรือไม่
+            elif isinstance(context_from_db, list):
+                # ถ้าเป็น list อยู่แล้ว ก็ใช้ได้เลย
+                saved_msgs = context_from_db
+            
+            # วนลูปเพื่อสร้าง history ขึ้นมาใหม่
+            for msg in saved_msgs:
+                if isinstance(msg, dict) and "role" in msg and "parts" in msg:
+                    history.append(msg)
+        except (json.JSONDecodeError, TypeError) as e:
+            # หากเกิดข้อผิดพลาดในการแปลงค่า ให้พิมพ์ log และเริ่ม session ใหม่
+            print(f"Session load error for user {user_id}: {e}. Starting new session.")
+    # --- END OF MODIFICATION ---
+
+    history.append({"role": "user", "parts": [{"text": user_text}]})
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent?key={GEMINI_API_KEY}"
+    headers = {"Content-Type": "application/json"}
+    data = {
+        "contents": history,
+        "systemInstruction": system_instruction,
+        "generationConfig": {
+            "temperature": 0.7,
+            "maxOutputTokens": 2048,
+            "topP": 0.95,
+            "topK": 40
+        }
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=data, timeout=30)
+        response.raise_for_status()
+        result = response.json()
+
+        reply_text = "ขออภัยค่ะ ไม่สามารถสร้างคำตอบที่สมบูรณ์ได้ในขณะนี้"
+        
+        if 'candidates' in result and result['candidates']:
+            candidate = result['candidates'][0]
+            if candidate.get('finishReason') == 'SAFETY':
+                reply_text = "ขออภัยค่ะ คำตอบถูกกรองด้วยเหตุผลด้านความปลอดภัยของเนื้อหา"
+            elif 'content' in candidate and 'parts' in candidate['content'] and candidate['content']['parts']:
+                reply_text = candidate['content']['parts'][0].get('text', reply_text)
+
+        # บันทึกเฉพาะข้อความตอบกลับจาก AI ลงใน history (ก่อนที่จะเติม emoji)
+        history.append({"role": "model", "parts": [{"text": reply_text}]})
+        # บันทึกประวัติการสนทนากลับลง DB
+        save_session(user_id, json.dumps(history[-8:], ensure_ascii=False))
+        
+        # ส่งคืนคำตอบพร้อม emoji แบบสุ่ม
+        return reply_text + " " + random.choice(emotions)
+
+    except requests.exceptions.RequestException as req_err:
+        print(f"Request error occurred: {req_err}")
+        traceback.print_exc()
+        return "ขออภัยค่ะ มีปัญหาในการเชื่อมต่อกับ AI ลองใหม่อีกครั้งนะคะ"
+    except Exception as e:
+        print(f"An unexpected error occurred in ask_gemini: {type(e).__name__}: {e}")
+        traceback.print_exc()
+        return "ขอโทษค่ะ ระบบขัดข้อง ไม่สามารถตอบกลับได้ในขณะนี้"
+    system_instruction = {
+        "role": "system",
+        "parts": [{"text": "ตอบกลับเป็นภาษาไทยด้วยน้ำเสียงเป็นกันเอง, เข้าใจง่าย, และไม่ใช้ Markdown"}]
+    }
+    
+    history = []
     context_json = get_session(user_id)
     
     if context_json:
