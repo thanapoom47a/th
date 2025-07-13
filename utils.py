@@ -79,6 +79,15 @@ def delete_user_profile_key(user_id, key_to_delete):
     conn.commit()
     conn.close()
 
+# --- ฟังก์ชันใหม่: ลบโปรไฟล์ทั้งหมดของผู้ใช้ ---
+def delete_user_profile(user_id):
+    """ลบข้อมูลโปรไฟล์ทั้งหมดของผู้ใช้ (ความจำถาวร)"""
+    conn = connect_db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM user_profiles WHERE user_id = %s", (user_id,))
+    conn.commit()
+    conn.close()
+
 def clear_pending_action(user_id):
     conn = connect_db()
     cur = conn.cursor()
@@ -172,10 +181,9 @@ def clear_session(user_id):
     conn.close()
 
 def ocr_image(image_path):
-    # ฟังก์ชันนี้ยังคงอยู่ แต่ไม่ได้ถูกเรียกใช้ใน app.py
     try:
         img = Image.open(image_path)
         return pytesseract.image_to_string(img, lang='tha+eng').strip()
     except Exception as e:
         print(f"OCR error: {e}")
-        return ""
+        return "" 
