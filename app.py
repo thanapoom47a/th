@@ -34,7 +34,7 @@ line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 app = Flask(__name__)
 bangkok_tz = pytz.timezone('Asia/Bangkok')
-MODEL_NAME = "gemini-1.5-flash-latest"
+MODEL_NAME = "gemini-2.5-flash-latest"
 emotions = ["😊", "😄", "🤔", "👍", "🙌", "😉", "✨"]
 
 try:
